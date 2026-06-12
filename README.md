@@ -7,8 +7,10 @@ no API keys, no cloud, no GPU rig. Your stories never leave your computer.
 ![A story scene with an inline generated image](docs/hero.png)
 
 - **Local text generation** via [Ollama](https://ollama.com) using Google's
-  Gemma 4 QAT (Q4_0) models, selectable per chat. OpenRouter is supported as an
-  optional cloud alternative.
+  Gemma 4 QAT (Q4_0) models, selectable per chat. Already running your own
+  inference engine? Point the **Custom** provider at any OpenAI-compatible
+  server (llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp, a remote Ollama).
+  OpenRouter is supported as an optional cloud alternative.
 - **Local image generation**: the narrator can call a `generate_image` tool and
   scenes are rendered inline by FLUX.2-klein on Apple Silicon (optional).
 - **Quick starts**: pick a setting, say who you are, and the narrator writes
@@ -137,6 +139,28 @@ Two implementation notes baked into the app:
   don't support the flag are retried without it.
 - If a local model's chat template doesn't support function tools, the turn is
   retried without the image tool, so the story continues without auto images.
+
+## Bring your own backend (optional)
+
+Already running llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp, or a remote
+Ollama? Switch a chat's provider to **Custom** in the Text Model panel and
+enter:
+
+- **Backend URL** — your server's address. A bare host
+  (`http://127.0.0.1:8080`), a versioned base (`.../v1`), or the full
+  `.../chat/completions` endpoint all work.
+- **Model** — whatever model name your server expects.
+
+Any OpenAI-compatible `/chat/completions` API works. If your server needs a
+key, set it once in `.env.local` or `.env.server`:
+
+```bash
+OPENAI_COMPAT_API_KEY=...
+```
+
+Most local servers need no key. The narrator's `generate_image` tool is sent
+when your server advertises tool support; if it doesn't, the turn is retried
+without it so the story still flows.
 
 ## OpenRouter (optional)
 

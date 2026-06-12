@@ -10,6 +10,8 @@ export const DEFAULT_STORY_SETTINGS: StorySettings = {
     "Classic text-adventure narration: direct second person, vivid but restrained prose, natural dialogue, and no purple exposition.",
   textProvider: "local",
   localTextModel: DEFAULT_LOCAL_TEXT_MODEL,
+  customBaseUrl: "",
+  customModel: "",
   imageMode: "fast",
   imageBackend: "mflux-hs",
   aspect: "square",

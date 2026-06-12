@@ -81,8 +81,10 @@ const requestSchema = z.object({
   settings: z.object({
     world: z.string().default(""),
     style: z.string().default(""),
-    textProvider: z.enum(["local", "openrouter"]).default("local"),
+    textProvider: z.enum(["local", "openrouter", "custom"]).default("local"),
     localTextModel: z.enum(LOCAL_TEXT_MODEL_IDS).default(DEFAULT_LOCAL_TEXT_MODEL),
+    customBaseUrl: z.string().trim().max(500).default(""),
+    customModel: z.string().trim().max(200).default(""),
     imageMode: z.enum(["fast", "slow"]).default("slow"),
     imageBackend: z.enum(["mflux-hs", "sdnq-hs"]).default("mflux-hs"),
     aspect: z.enum(["square", "portrait", "landscape"]).default("square"),
@@ -398,6 +400,114 @@ async function requestOpenRouterMessage(
   return { message: data?.choices?.[0]?.message };
 }
 
+// Resolve a user-entered backend URL to its /chat/completions endpoint.
+// Accepts a bare host (http://127.0.0.1:8080), a versioned base (.../v1), or
+// the full endpoint, so people can paste whatever their server prints.
+function customChatEndpoint(baseUrl: string): string {
+  const url = baseUrl.trim().replace(/\/+$/, "");
+  if (/\/chat\/completions$/.test(url)) return url;
+  if (/\/v\d+$/.test(url)) return `${url}/chat/completions`;
+  return `${url}/v1/chat/completions`;
+}
+
+// Any OpenAI-compatible server: llama.cpp, LM Studio, vLLM, TabbyAPI,
+// KoboldCpp, a remote Ollama, etc. The model name and base URL are per-chat
+// settings; an optional key comes from OPENAI_COMPAT_API_KEY (most local
+// servers need none).
+async function requestCustomMessage(
+  baseUrl: string,
+  model: string,
+  messages: OpenRouterMessage[],
+  includeImageTool: boolean,
+): Promise<UpstreamResult> {
+  const trimmedBase = (baseUrl || "").trim();
+  const trimmedModel = (model || "").trim();
+
+  if (!trimmedBase) {
+    return {
+      error: Response.json(
+        {
+          error:
+            "No backend URL set. Add your server's URL (for example http://127.0.0.1:8080/v1) in Text Model settings.",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+
+  if (!trimmedModel) {
+    return {
+      error: Response.json(
+        {
+          error:
+            "No model name set for the custom backend. Enter the model your server serves in Text Model settings.",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+
+  const endpoint = customChatEndpoint(trimmedBase);
+  const apiKey = serverEnv("OPENAI_COMPAT_API_KEY");
+  const requestPayload: Record<string, unknown> = {
+    model: trimmedModel,
+    messages,
+    temperature: 0.9,
+    max_tokens: configuredMaxOutputTokens(),
+  };
+
+  if (includeImageTool) {
+    requestPayload.tools = [generateImageTool];
+    requestPayload.tool_choice = "auto";
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify(requestPayload),
+    });
+  } catch {
+    return {
+      error: Response.json(
+        {
+          error: `Could not reach the backend at ${endpoint}. Check the URL and that your server is running.`,
+        },
+        { status: 502 },
+      ),
+    };
+  }
+
+  if (!upstream.ok) {
+    const text = await upstream.text();
+
+    // Some servers don't implement function tools; retry without auto images.
+    if (includeImageTool && /tool|function|not support/i.test(text)) {
+      return requestCustomMessage(trimmedBase, trimmedModel, messages, false);
+    }
+
+    return {
+      error: Response.json(
+        {
+          error: `Custom backend request failed (${upstream.status}).`,
+          detail: text.slice(0, 1000),
+        },
+        { status: upstream.status },
+      ),
+    };
+  }
+
+  const data = (await upstream.json()) as {
+    choices?: Array<{ message?: UpstreamChatMessage }>;
+  };
+
+  return { message: data?.choices?.[0]?.message };
+}
+
 async function requestLocalMessage(
   model: string,
   messages: OpenRouterMessage[],
@@ -485,6 +595,26 @@ Write compact prose in past tense, no headings or lists, at most 500 words. Outp
 
 type StoryRequestSettings = z.infer<typeof requestSchema>["settings"];
 
+// Single place that picks the upstream provider for a turn.
+function requestStoryMessage(
+  settings: StoryRequestSettings,
+  messages: OpenRouterMessage[],
+  includeImageTool: boolean,
+): Promise<UpstreamResult> {
+  if (settings.textProvider === "local") {
+    return requestLocalMessage(settings.localTextModel, messages, includeImageTool);
+  }
+  if (settings.textProvider === "custom") {
+    return requestCustomMessage(
+      settings.customBaseUrl,
+      settings.customModel,
+      messages,
+      includeImageTool,
+    );
+  }
+  return requestOpenRouterMessage(messages, includeImageTool);
+}
+
 // Codex-style compaction adapted for stories: passages that scroll out of the
 // context window are folded into a rolling summary instead of being forgotten.
 // Best-effort — a failed summary never blocks the player's turn.
@@ -504,10 +634,7 @@ async function summarizeEvictedPassages(
     },
   ];
 
-  const { message, error } =
-    settings.textProvider === "local"
-      ? await requestLocalMessage(settings.localTextModel, messages, false)
-      : await requestOpenRouterMessage(messages, false);
+  const { message, error } = await requestStoryMessage(settings, messages, false);
 
   if (error) {
     return null;
@@ -591,10 +718,11 @@ export async function POST(request: Request) {
   const messages = characterVisionMessage
     ? [storyMessages[0], characterVisionMessage, ...storyMessages.slice(1)]
     : storyMessages;
-  const { message, error } =
-    provider === "local"
-      ? await requestLocalMessage(body.settings.localTextModel, messages, body.settings.autoImages)
-      : await requestOpenRouterMessage(messages, body.settings.autoImages);
+  const { message, error } = await requestStoryMessage(
+    body.settings,
+    messages,
+    body.settings.autoImages,
+  );
 
   if (error) {
     return error;
@@ -606,7 +734,7 @@ export async function POST(request: Request) {
   if (!storyText && !imageToolArgs) {
     return Response.json(
       {
-        error: `${provider === "local" ? "The local model" : "OpenRouter"} returned no story content.`,
+        error: `${provider === "local" ? "The local model" : provider === "custom" ? "The custom backend" : "OpenRouter"} returned no story content.`,
         detail: message,
       },
       { status: 502 },

@@ -158,6 +158,11 @@ function normalizeSettings(settings?: Partial<StorySettings>): StorySettings {
     merged.localTextModel = DEFAULT_STORY_SETTINGS.localTextModel;
   }
 
+  merged.customBaseUrl =
+    typeof merged.customBaseUrl === "string" ? merged.customBaseUrl.trim().slice(0, 500) : "";
+  merged.customModel =
+    typeof merged.customModel === "string" ? merged.customModel.trim().slice(0, 200) : "";
+
   return merged;
 }
 

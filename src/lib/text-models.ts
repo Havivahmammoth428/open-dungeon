@@ -1,6 +1,6 @@
-export type TextProvider = "local" | "openrouter";
+export type TextProvider = "local" | "openrouter" | "custom";
 
-export const TEXT_PROVIDERS: TextProvider[] = ["local", "openrouter"];
+export const TEXT_PROVIDERS: TextProvider[] = ["local", "openrouter", "custom"];
 
 // Gemma 4 QAT (quantization-aware trained, Q4_0) builds served by Ollama.
 // context = native context window in tokens. ram = resident memory measured
@@ -31,5 +31,5 @@ export function isLocalTextModelId(value: unknown): value is LocalTextModelId {
 }
 
 export function isTextProvider(value: unknown): value is TextProvider {
-  return value === "local" || value === "openrouter";
+  return value === "local" || value === "openrouter" || value === "custom";
 }

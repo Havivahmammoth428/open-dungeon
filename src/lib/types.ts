@@ -55,6 +55,9 @@ export type StorySettings = {
   style: string;
   textProvider: TextProvider;
   localTextModel: LocalTextModelId;
+  // Custom OpenAI-compatible backend (llama.cpp, LM Studio, vLLM, etc.).
+  customBaseUrl: string;
+  customModel: string;
   imageMode: ImageMode;
   imageBackend: ImageBackend;
   aspect: AspectPreset;

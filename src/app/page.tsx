@@ -931,7 +931,9 @@ export default function Home() {
                       LOCAL_TEXT_MODELS.find((model) => model.id === settings.localTextModel)
                         ?.label ?? "Local model"
                     } · on-device`
-                  : "OpenRouter · cloud"}
+                  : settings.textProvider === "custom"
+                    ? `${settings.customModel || "Custom backend"} · your server`
+                    : "OpenRouter · cloud"}
               </p>
             </div>
           </div>
@@ -2039,6 +2041,7 @@ function TextModelPanel({
           value={settings.textProvider}
           options={[
             { value: "local", label: "Local" },
+            { value: "custom", label: "Custom" },
             { value: "openrouter", label: "OpenRouter" },
           ]}
           onChange={(textProvider) =>
@@ -2086,6 +2089,64 @@ function TextModelPanel({
               </code>
             </p>
           )}
+        </div>
+      ) : settings.textProvider === "custom" ? (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label
+              htmlFor={`${idPrefix}-custom-base-url`}
+              className="block text-xs font-medium uppercase text-stone-500"
+            >
+              Backend URL
+            </label>
+            <input
+              id={`${idPrefix}-custom-base-url`}
+              name={`${idPrefix}-custom-base-url`}
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder="http://127.0.0.1:8080/v1"
+              value={settings.customBaseUrl}
+              onChange={(event) =>
+                setSettings((current) => ({ ...current, customBaseUrl: event.target.value }))
+              }
+              className="w-full rounded border border-stone-800 bg-stone-950 px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-300"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor={`${idPrefix}-custom-model`}
+              className="block text-xs font-medium uppercase text-stone-500"
+            >
+              Model
+            </label>
+            <input
+              id={`${idPrefix}-custom-model`}
+              name={`${idPrefix}-custom-model`}
+              type="text"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder="e.g. llama-3.3-70b-instruct"
+              value={settings.customModel}
+              onChange={(event) =>
+                setSettings((current) => ({ ...current, customModel: event.target.value }))
+              }
+              className="w-full rounded border border-stone-800 bg-stone-950 px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-300"
+            />
+          </div>
+          <p className="text-xs leading-relaxed text-stone-500">
+            Any OpenAI-compatible server: llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp,
+            or a remote Ollama. If your server needs a key, set{" "}
+            <code className="rounded bg-stone-900 px-1 py-0.5 text-amber-100">
+              OPENAI_COMPAT_API_KEY
+            </code>{" "}
+            in .env.server.
+          </p>
         </div>
       ) : (
         <p className="text-xs text-stone-500">
