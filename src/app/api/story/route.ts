@@ -76,7 +76,9 @@ const requestSchema = z.object({
   // continue — advance the story with no player action (not persisted).
   // retry    — regenerate the latest passage; input is the prior player action,
   //            already saved, so it is not persisted again.
-  mode: z.enum(["turn", "kickoff", "continue", "retry"]).default("turn"),
+  // opening — the player wrote the first passage themselves; store it verbatim
+  //           as the opening narration, with no model call.
+  mode: z.enum(["turn", "kickoff", "continue", "retry", "opening"]).default("turn"),
   input: z.string().min(1),
   messages: z.array(messageSchema).default([]),
   attachments: z.array(attachmentSchema).default([]),
@@ -615,6 +617,21 @@ export async function POST(request: Request) {
   if (body.chatId && body.mode === "turn") {
     addMessage(body.chatId, userMessage);
     updateChatTitleFromInput(body.chatId, body.input);
+  }
+
+  // Player-authored opening: persist the text as the first narration passage
+  // and return it, with no model call.
+  if (body.mode === "opening") {
+    const openingMessage: StoryMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: body.input,
+      createdAt: new Date().toISOString(),
+    };
+    if (body.chatId) {
+      addMessage(body.chatId, openingMessage);
+    }
+    return Response.json({ id: openingMessage.id, content: openingMessage.content });
   }
 
   const provider = body.settings.textProvider;

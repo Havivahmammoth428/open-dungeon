@@ -663,7 +663,7 @@ export default function Home() {
   // Shared core for every narrator turn (new turn, kickoff, continue, retry).
   async function runTurn(opts: {
     chatId: string;
-    mode: "turn" | "kickoff" | "continue" | "retry";
+    mode: "turn" | "kickoff" | "continue" | "retry" | "opening";
     input: string;
     history: StoryMessage[];
     settings: StorySettings;
@@ -720,11 +720,15 @@ export default function Home() {
     }
   }
 
-  async function kickoffStory(chat: StoryChat) {
+  async function kickoffStory(chat: StoryChat, hint?: string) {
+    const trimmedHint = hint?.trim();
+    const input = trimmedHint
+      ? `${KICKOFF_DIRECTIVE} Opening direction from the player (shape the scene around this): ${trimmedHint}`
+      : KICKOFF_DIRECTIVE;
     await runTurn({
       chatId: chat.id,
       mode: "kickoff",
-      input: KICKOFF_DIRECTIVE,
+      input,
       history: [],
       settings: chat.settings,
     });
@@ -855,7 +859,11 @@ export default function Home() {
     }
   }
 
-  async function beginStory(options: { title: string; world: string }) {
+  async function beginStory(options: {
+    title: string;
+    world: string;
+    opening: { mode: "narrator"; hint: string } | { mode: "self"; text: string };
+  }) {
     setNewStoryOpen(false);
     setError("");
 
@@ -873,7 +881,19 @@ export default function Home() {
       ]);
       applyChat(payload.chat);
       void refreshChats();
-      await kickoffStory(payload.chat);
+
+      if (options.opening.mode === "self") {
+        // The player wrote the opening; store it verbatim, no generation.
+        await runTurn({
+          chatId: payload.chat.id,
+          mode: "opening",
+          input: options.opening.text.trim(),
+          history: [],
+          settings: payload.chat.settings,
+        });
+      } else {
+        await kickoffStory(payload.chat, options.opening.hint);
+      }
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "New story failed.");
     }
@@ -1293,21 +1313,35 @@ function NewStoryDialog({
   onBegin,
 }: {
   onClose: () => void;
-  onBegin: (options: { title: string; world: string }) => void;
+  onBegin: (options: {
+    title: string;
+    world: string;
+    opening: { mode: "narrator"; hint: string } | { mode: "self"; text: string };
+  }) => void;
 }) {
   const [presetId, setPresetId] = useState<StoryPresetId>("fantasy");
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [customWorld, setCustomWorld] = useState("");
+  const [openingMode, setOpeningMode] = useState<"narrator" | "self">("narrator");
+  const [openingHint, setOpeningHint] = useState("");
+  const [openingText, setOpeningText] = useState("");
 
   const isCustom = presetId === "custom";
   const preset = STORY_PRESETS.find((item) => item.id === presetId) ?? STORY_PRESETS[0];
-  const canBegin = !isCustom || customWorld.trim().length > 0;
+  const settingReady = !isCustom || customWorld.trim().length > 0;
+  const openingReady = openingMode === "narrator" || openingText.trim().length > 0;
+  const canBegin = settingReady && openingReady;
 
   function begin() {
+    const opening =
+      openingMode === "self"
+        ? ({ mode: "self", text: openingText.trim() } as const)
+        : ({ mode: "narrator", hint: openingHint.trim() } as const);
+
     if (isCustom) {
       const world = customWorld.trim();
-      onBegin({ world, title: titleFromInput(world) });
+      onBegin({ world, title: titleFromInput(world), opening });
       return;
     }
 
@@ -1318,6 +1352,7 @@ function NewStoryDialog({
       title: titleFromInput(
         name.trim() ? `${name.trim()} · ${preset.label}` : `${preset.label} · ${persona}`,
       ),
+      opening,
     });
   }
 
@@ -1335,7 +1370,7 @@ function NewStoryDialog({
                 New story
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-pretty text-sm text-stone-500">
-                Pick a setting and say who you are — the narrator writes the opening scene.
+                Pick a setting, say who you are, and choose how the story opens.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -1420,6 +1455,74 @@ function NewStoryDialog({
               </label>
             </div>
           )}
+
+          <div className="mt-5 border-t border-stone-800 pt-4">
+            <span className="mb-2 block text-xs font-medium uppercase text-stone-500">
+              Opening
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { value: "narrator", label: "Narrator sets the scene" },
+                  { value: "self", label: "Write the opening myself" },
+                ] as const
+              ).map((option) => {
+                const selected = option.value === openingMode;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setOpeningMode(option.value)}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm",
+                      selected
+                        ? "border-amber-200/70 bg-stone-900 text-stone-100"
+                        : "border-stone-800 bg-stone-950 text-stone-300 hover:bg-stone-900",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {openingMode === "narrator" ? (
+              <label className="mt-3 block">
+                <span className="mb-1.5 block text-xs font-medium uppercase text-stone-500">
+                  Opening hint <span className="normal-case text-stone-600">(optional)</span>
+                </span>
+                <textarea
+                  id="new-story-opening-hint"
+                  name="new-story-opening-hint"
+                  value={openingHint}
+                  onChange={(event) => setOpeningHint(event.target.value)}
+                  rows={2}
+                  placeholder="e.g. start me waking up in a cell with no memory of the night before"
+                  className="w-full resize-none rounded-lg border border-stone-800 bg-stone-950 px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-300"
+                />
+              </label>
+            ) : (
+              <label className="mt-3 block">
+                <span className="mb-1.5 block text-xs font-medium uppercase text-stone-500">
+                  Your opening passage
+                </span>
+                <textarea
+                  id="new-story-opening-text"
+                  name="new-story-opening-text"
+                  value={openingText}
+                  onChange={(event) => setOpeningText(event.target.value)}
+                  rows={4}
+                  placeholder="Rain hammers the tin roof of the bus shelter. You pull your coat tighter and check the time again. The 11:40 is twenty minutes late, and the only other person here keeps watching you..."
+                  className="w-full resize-none rounded-lg border border-stone-800 bg-stone-950 px-3 py-2 text-sm text-stone-200 outline-none focus:border-amber-300"
+                />
+                <span className="mt-1.5 block text-xs text-stone-600">
+                  This becomes the story&apos;s first passage exactly as written. Take your
+                  first action and the narrator continues from there.
+                </span>
+              </label>
+            )}
+          </div>
 
           <div className="mt-5 flex items-center justify-end gap-2">
             <Dialog.Close asChild>
@@ -2767,7 +2870,7 @@ function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs text-stone-400 hover:bg-stone-900",
+              "inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-1.5 text-xs text-stone-400 hover:bg-stone-900",
               selected && "bg-stone-800 text-stone-100",
             )}
           >
