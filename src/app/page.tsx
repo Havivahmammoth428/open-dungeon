@@ -931,9 +931,7 @@ export default function Home() {
                       LOCAL_TEXT_MODELS.find((model) => model.id === settings.localTextModel)
                         ?.label ?? "Local model"
                     } · on-device`
-                  : settings.textProvider === "custom"
-                    ? `${settings.customModel || "Custom backend"} · your server`
-                    : "OpenRouter · cloud"}
+                  : `${settings.customModel || "Connected server"} · your server`}
               </p>
             </div>
           </div>
@@ -2017,6 +2015,14 @@ function DeleteCharacterDialog({
   );
 }
 
+// One-tap URL fills for the most common OpenAI-compatible servers.
+const SERVER_PRESETS: Array<{ label: string; url: string }> = [
+  { label: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+  { label: "LM Studio", url: "http://localhost:1234/v1" },
+  { label: "llama.cpp", url: "http://127.0.0.1:8080/v1" },
+  { label: "Ollama", url: "http://127.0.0.1:11434/v1" },
+];
+
 function TextModelPanel({
   settings,
   setSettings,
@@ -2041,8 +2047,7 @@ function TextModelPanel({
           value={settings.textProvider}
           options={[
             { value: "local", label: "Local" },
-            { value: "custom", label: "Custom" },
-            { value: "openrouter", label: "OpenRouter" },
+            { value: "custom", label: "Connect a server" },
           ]}
           onChange={(textProvider) =>
             setSettings((current) => ({ ...current, textProvider }))
@@ -2090,8 +2095,27 @@ function TextModelPanel({
             </p>
           )}
         </div>
-      ) : settings.textProvider === "custom" ? (
+      ) : (
         <div className="space-y-3">
+          <div className="space-y-1.5">
+            <span className="block text-xs font-medium uppercase text-stone-500">
+              Quick fill
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {SERVER_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() =>
+                    setSettings((current) => ({ ...current, customBaseUrl: preset.url }))
+                  }
+                  className="rounded border border-stone-700 bg-stone-900/40 px-2 py-1 text-xs text-stone-300 hover:border-amber-700/60 hover:bg-stone-900"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-1.5">
             <label
               htmlFor={`${idPrefix}-custom-base-url`}
@@ -2164,14 +2188,19 @@ function TextModelPanel({
           </div>
           <p className="text-xs leading-relaxed text-stone-500">
             Any OpenAI-compatible server: llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp,
-            or a remote Ollama. Everything stays on your machine, and most local servers
-            need no key.
+            OpenRouter, or a remote Ollama. Everything stays on your machine, and most
+            local servers need no key. For OpenRouter, paste a model id from{" "}
+            <a
+              href="https://openrouter.ai/models"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-amber-200/90 underline underline-offset-2 hover:text-amber-100"
+            >
+              openrouter.ai/models
+            </a>
+            .
           </p>
         </div>
-      ) : (
-        <p className="text-xs text-stone-500">
-          Uses OPENROUTER_API_KEY and OPENROUTER_MODEL from .env.server.
-        </p>
       )}
     </div>
   );

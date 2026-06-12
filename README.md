@@ -8,9 +8,9 @@ no API keys, no cloud, no GPU rig. Your stories never leave your computer.
 
 - **Local text generation** via [Ollama](https://ollama.com) using Google's
   Gemma 4 QAT (Q4_0) models, selectable per chat. Already running your own
-  inference engine? Point the **Custom** provider at any OpenAI-compatible
-  server (llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp, a remote Ollama).
-  OpenRouter is supported as an optional cloud alternative.
+  inference engine? Choose **Connect a server** and point it at any
+  OpenAI-compatible backend (llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp,
+  a remote Ollama, or OpenRouter) right in the app.
 - **Local image generation**: the narrator can call a `generate_image` tool and
   scenes are rendered inline by FLUX.2-klein on Apple Silicon (optional).
 - **Quick starts**: pick a setting, say who you are, and the narrator writes
@@ -140,35 +140,28 @@ Two implementation notes baked into the app:
 - If a local model's chat template doesn't support function tools, the turn is
   retried without the image tool, so the story continues without auto images.
 
-## Bring your own backend (optional)
+## Connect a server (optional)
 
-Already running llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp, or a remote
-Ollama? Switch a chat's provider to **Custom** in the Text Model panel and
-enter:
+Don't want the bundled Ollama path? Switch a chat's provider to **Connect a
+server** in the Text Model panel and point it at any OpenAI-compatible backend:
+llama.cpp, LM Studio, vLLM, TabbyAPI, KoboldCpp, a remote Ollama, or
+**OpenRouter**. Enter:
 
 - **Backend URL** — your server's address. A bare host
   (`http://127.0.0.1:8080`), a versioned base (`.../v1`), or the full
-  `.../chat/completions` endpoint all work.
-- **Model** — whatever model name your server expects.
-- **API key** — optional, right in the panel. Most local servers need none.
+  `.../chat/completions` endpoint all work. Quick-fill buttons set the URL for
+  OpenRouter, LM Studio, llama.cpp, and Ollama.
+- **Model** — whatever model name your server expects. For OpenRouter, paste an
+  id from [openrouter.ai/models](https://openrouter.ai/models).
+- **API key** — optional, right in the panel. Most local servers need none;
+  OpenRouter does.
 
-That's it, no config files. Everything is entered in-app and stored locally
-with the chat. If you'd rather keep the key out of the UI, you can instead set
-`OPENAI_COMPAT_API_KEY` in `.env.local` or `.env.server` and leave the field
-blank. The narrator's `generate_image` tool is sent when your server
-advertises tool support; if it doesn't, the turn is retried without it so the
-story still flows.
-
-## OpenRouter (optional)
-
-Switch a chat's provider to OpenRouter in the Text Model panel, and put your
-key in `.env.local` or `.env.server`:
-
-```bash
-OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=google/gemini-3.5-flash
-OPENROUTER_MAX_TOKENS=16384
-```
+No config files: everything is entered in-app and stored locally with the chat.
+If you'd rather keep keys out of the UI, leave the field blank and set an env
+var instead — `OPENROUTER_API_KEY` (and optional `OPENROUTER_MODEL`) for
+OpenRouter, or `OPENAI_COMPAT_API_KEY` for any other server. The narrator's
+`generate_image` tool is sent when your server advertises tool support; if it
+doesn't, the turn is retried without it so the story still flows.
 
 ## Image generation (optional)
 
@@ -233,7 +226,8 @@ defaults run fully local. Highlights:
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local text server |
 | `LOCAL_TEXT_MAX_TOKENS` | `4096` | Max tokens generated per local turn |
 | `LOCAL_TEXT_CONTEXT` | model max | Cap on the local context window |
-| `OPENROUTER_API_KEY` | — | Enables the OpenRouter provider |
+| `OPENROUTER_API_KEY` | — | Fallback key for OpenRouter URLs (else set in-app) |
+| `OPENAI_COMPAT_API_KEY` | — | Fallback key for other connected servers |
 | `FLUX_WORKER_URL` | `http://127.0.0.1:7869` | Image worker |
 | `ULTRA_FAST_IMAGE_GEN_DIR` | `~/ultra-fast-image-gen` | FLUX backends repo |
 | `SQLITE_DB_PATH` | `data/local-roleplay.sqlite` | Database location |

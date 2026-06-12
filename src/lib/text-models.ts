@@ -1,6 +1,9 @@
-export type TextProvider = "local" | "openrouter" | "custom";
+// "custom" = any OpenAI-compatible server (llama.cpp, LM Studio, vLLM,
+// OpenRouter, a remote Ollama). OpenRouter is no longer its own provider; it
+// is reached through "custom" with the OpenRouter preset URL.
+export type TextProvider = "local" | "custom";
 
-export const TEXT_PROVIDERS: TextProvider[] = ["local", "openrouter", "custom"];
+export const TEXT_PROVIDERS: TextProvider[] = ["local", "custom"];
 
 // Gemma 4 QAT (quantization-aware trained, Q4_0) builds served by Ollama.
 // context = native context window in tokens. ram = resident memory measured
@@ -31,5 +34,5 @@ export function isLocalTextModelId(value: unknown): value is LocalTextModelId {
 }
 
 export function isTextProvider(value: unknown): value is TextProvider {
-  return value === "local" || value === "openrouter" || value === "custom";
+  return value === "local" || value === "custom";
 }

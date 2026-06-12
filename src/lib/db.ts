@@ -135,6 +135,20 @@ function normalizeSettings(settings?: Partial<StorySettings>): StorySettings {
     ...settings,
   };
 
+  // Migrate legacy OpenRouter chats into the unified custom provider. Runs
+  // before provider validation, since "openrouter" is no longer a valid value.
+  const legacy = (settings ?? {}) as Record<string, unknown>;
+  if (legacy.textProvider === "openrouter") {
+    merged.textProvider = "custom";
+    if (!merged.customBaseUrl) merged.customBaseUrl = "https://openrouter.ai/api/v1";
+    if (!merged.customModel && typeof legacy.openrouterModel === "string") {
+      merged.customModel = legacy.openrouterModel;
+    }
+    if (!merged.customApiKey && typeof legacy.openrouterApiKey === "string") {
+      merged.customApiKey = legacy.openrouterApiKey;
+    }
+  }
+
   if (
     merged.aspect !== "square" &&
     merged.aspect !== "portrait" &&

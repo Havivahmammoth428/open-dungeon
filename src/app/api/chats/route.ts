@@ -8,8 +8,11 @@ export const dynamic = "force-dynamic";
 const settingsSchema = z.object({
   world: z.string().optional(),
   style: z.string().optional(),
-  textProvider: z.enum(["local", "openrouter"]).optional(),
+  textProvider: z.enum(["local", "custom"]).optional(),
   localTextModel: z.enum(LOCAL_TEXT_MODEL_IDS).optional(),
+  customBaseUrl: z.string().optional(),
+  customModel: z.string().optional(),
+  customApiKey: z.string().optional(),
   imageMode: z.enum(["fast", "slow"]).optional(),
   imageBackend: z.enum(["mflux-hs", "sdnq-hs"]).optional(),
   aspect: z.enum(["square", "portrait", "landscape"]).optional(),

@@ -30,7 +30,9 @@ const HISTORY_RESERVE_TOKENS = 8_192;
 // Stay comfortably under the context window so a turn can never max it out.
 const CONTEXT_SAFETY_MARGIN = 0.9;
 const MIN_HISTORY_CHAR_BUDGET = 48_000;
-const OPENROUTER_HISTORY_CHAR_BUDGET = 172_800;
+// History budget for remote/custom backends, whose context window we can't
+// introspect. ~43K tokens; long stories still compact via the rolling summary.
+const REMOTE_HISTORY_CHAR_BUDGET = 172_800;
 const supportedVisionTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 type TextContentPart = {
@@ -81,7 +83,7 @@ const requestSchema = z.object({
   settings: z.object({
     world: z.string().default(""),
     style: z.string().default(""),
-    textProvider: z.enum(["local", "openrouter", "custom"]).default("local"),
+    textProvider: z.enum(["local", "custom"]).default("local"),
     localTextModel: z.enum(LOCAL_TEXT_MODEL_IDS).default(DEFAULT_LOCAL_TEXT_MODEL),
     customBaseUrl: z.string().trim().max(500).default(""),
     customModel: z.string().trim().max(200).default(""),
@@ -340,67 +342,6 @@ function toOllamaMessages(messages: OpenRouterMessage[]): OllamaChatMessage[] {
   });
 }
 
-async function requestOpenRouterMessage(
-  messages: OpenRouterMessage[],
-  includeImageTool: boolean,
-): Promise<UpstreamResult> {
-  const apiKey = serverEnv("OPENROUTER_API_KEY");
-
-  if (!apiKey) {
-    return {
-      error: Response.json(
-        {
-          error:
-            "Missing OPENROUTER_API_KEY in .env.server or .env.local. Add a key, or switch this chat to the local model in Text Model settings.",
-        },
-        { status: 500 },
-      ),
-    };
-  }
-
-  const model = serverEnv("OPENROUTER_MODEL", "google/gemini-3.5-flash");
-  const baseUrl = serverEnv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-  const requestPayload: Record<string, unknown> = {
-    model,
-    messages,
-    temperature: 0.9,
-    max_tokens: configuredMaxOutputTokens(),
-  };
-
-  if (includeImageTool) {
-    requestPayload.tools = [generateImageTool];
-    requestPayload.tool_choice = "auto";
-    requestPayload.parallel_tool_calls = false;
-  }
-
-  const upstream = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": serverEnv("OPENROUTER_APP_URL", "http://localhost:3000"),
-      "X-OpenRouter-Title": serverEnv("OPENROUTER_APP_TITLE", "Open Dungeon"),
-    },
-    body: JSON.stringify(requestPayload),
-  });
-
-  if (!upstream.ok) {
-    const text = await upstream.text();
-    return {
-      error: Response.json(
-        { error: `OpenRouter request failed (${upstream.status}).`, detail: text.slice(0, 1000) },
-        { status: upstream.status },
-      ),
-    };
-  }
-
-  const data = (await upstream.json()) as {
-    choices?: Array<{ message?: UpstreamChatMessage }>;
-  };
-
-  return { message: data?.choices?.[0]?.message };
-}
-
 // Resolve a user-entered backend URL to its /chat/completions endpoint.
 // Accepts a bare host (http://127.0.0.1:8080), a versioned base (.../v1), or
 // the full endpoint, so people can paste whatever their server prints.
@@ -412,9 +353,10 @@ function customChatEndpoint(baseUrl: string): string {
 }
 
 // Any OpenAI-compatible server: llama.cpp, LM Studio, vLLM, TabbyAPI,
-// KoboldCpp, a remote Ollama, etc. The model name and base URL are per-chat
-// settings; an optional key comes from OPENAI_COMPAT_API_KEY (most local
-// servers need none).
+// KoboldCpp, OpenRouter, a remote Ollama, etc. The model name and base URL are
+// per-chat settings; the key is optional (most local servers need none). When
+// the URL is OpenRouter we add its attribution headers and fall back to the
+// OPENROUTER_* env vars; otherwise the fallback is OPENAI_COMPAT_API_KEY.
 async function requestCustomMessage(
   baseUrl: string,
   model: string,
@@ -423,7 +365,6 @@ async function requestCustomMessage(
   includeImageTool: boolean,
 ): Promise<UpstreamResult> {
   const trimmedBase = (baseUrl || "").trim();
-  const trimmedModel = (model || "").trim();
 
   if (!trimmedBase) {
     return {
@@ -437,12 +378,17 @@ async function requestCustomMessage(
     };
   }
 
-  if (!trimmedModel) {
+  const isOpenRouter = /(^|\.)openrouter\.ai/i.test(trimmedBase);
+  const resolvedModel =
+    (model || "").trim() ||
+    (isOpenRouter ? serverEnv("OPENROUTER_MODEL", "google/gemini-3.5-flash") : "");
+
+  if (!resolvedModel) {
     return {
       error: Response.json(
         {
           error:
-            "No model name set for the custom backend. Enter the model your server serves in Text Model settings.",
+            "No model name set. Enter the model your server serves in Text Model settings.",
         },
         { status: 400 },
       ),
@@ -450,10 +396,13 @@ async function requestCustomMessage(
   }
 
   const endpoint = customChatEndpoint(trimmedBase);
-  // In-app key wins; fall back to the env var for people who prefer it.
-  const resolvedKey = (apiKey || "").trim() || serverEnv("OPENAI_COMPAT_API_KEY");
+  // In-app key wins; otherwise fall back to the matching env var.
+  const resolvedKey =
+    (apiKey || "").trim() ||
+    (isOpenRouter ? serverEnv("OPENROUTER_API_KEY") : "") ||
+    serverEnv("OPENAI_COMPAT_API_KEY");
   const requestPayload: Record<string, unknown> = {
-    model: trimmedModel,
+    model: resolvedModel,
     messages,
     temperature: 0.9,
     max_tokens: configuredMaxOutputTokens(),
@@ -471,6 +420,12 @@ async function requestCustomMessage(
       headers: {
         "Content-Type": "application/json",
         ...(resolvedKey ? { Authorization: `Bearer ${resolvedKey}` } : {}),
+        ...(isOpenRouter
+          ? {
+              "HTTP-Referer": serverEnv("OPENROUTER_APP_URL", "http://localhost:3000"),
+              "X-Title": serverEnv("OPENROUTER_APP_TITLE", "Open Dungeon"),
+            }
+          : {}),
       },
       body: JSON.stringify(requestPayload),
     });
@@ -490,13 +445,13 @@ async function requestCustomMessage(
 
     // Some servers don't implement function tools; retry without auto images.
     if (includeImageTool && /tool|function|not support/i.test(text)) {
-      return requestCustomMessage(trimmedBase, trimmedModel, apiKey, messages, false);
+      return requestCustomMessage(trimmedBase, resolvedModel, apiKey, messages, false);
     }
 
     return {
       error: Response.json(
         {
-          error: `Custom backend request failed (${upstream.status}).`,
+          error: `${isOpenRouter ? "OpenRouter" : "Backend"} request failed (${upstream.status}).`,
           detail: text.slice(0, 1000),
         },
         { status: upstream.status },
@@ -607,16 +562,13 @@ function requestStoryMessage(
   if (settings.textProvider === "local") {
     return requestLocalMessage(settings.localTextModel, messages, includeImageTool);
   }
-  if (settings.textProvider === "custom") {
-    return requestCustomMessage(
-      settings.customBaseUrl,
-      settings.customModel,
-      settings.customApiKey,
-      messages,
-      includeImageTool,
-    );
-  }
-  return requestOpenRouterMessage(messages, includeImageTool);
+  return requestCustomMessage(
+    settings.customBaseUrl,
+    settings.customModel,
+    settings.customApiKey,
+    messages,
+    includeImageTool,
+  );
 }
 
 // Codex-style compaction adapted for stories: passages that scroll out of the
@@ -676,7 +628,7 @@ export async function POST(request: Request) {
               HISTORY_CHARS_PER_TOKEN,
           ),
         )
-      : OPENROUTER_HISTORY_CHAR_BUDGET;
+      : REMOTE_HISTORY_CHAR_BUDGET;
 
   const { recent, evicted } = packStoryHistory(body.messages, historyCharBudget);
   let storySummary = "";
@@ -738,7 +690,7 @@ export async function POST(request: Request) {
   if (!storyText && !imageToolArgs) {
     return Response.json(
       {
-        error: `${provider === "local" ? "The local model" : provider === "custom" ? "The custom backend" : "OpenRouter"} returned no story content.`,
+        error: `${provider === "local" ? "The local model" : "The backend"} returned no story content.`,
         detail: message,
       },
       { status: 502 },

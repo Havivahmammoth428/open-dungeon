@@ -55,11 +55,11 @@ export type StorySettings = {
   style: string;
   textProvider: TextProvider;
   localTextModel: LocalTextModelId;
-  // Custom OpenAI-compatible backend (llama.cpp, LM Studio, vLLM, etc.).
+  // Any OpenAI-compatible backend (llama.cpp, LM Studio, vLLM, OpenRouter, a
+  // remote Ollama). Set in-app. The key is optional and stored locally; most
+  // local servers need none, and it falls back to env when blank.
   customBaseUrl: string;
   customModel: string;
-  // Optional key for the custom backend, stored locally. Most local servers
-  // need none. Falls back to OPENAI_COMPAT_API_KEY when blank.
   customApiKey: string;
   imageMode: ImageMode;
   imageBackend: ImageBackend;
