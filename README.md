@@ -39,6 +39,16 @@ no API keys, no cloud, no GPU rig. Your stories never leave your computer.
 
 ## Quick start
 
+**Easiest (Mac, Apple Silicon):** grab the DMG from
+[Releases](https://github.com/newideas99/open-dungeon/releases), drag
+**Open Dungeon** to Applications, and open it (right-click → Open the first
+time — it's unsigned). It walks you through everything: a bundled Node
+runtime, the narrator model download, and first build. You just need
+[Ollama](https://ollama.com/download) installed.
+
+**From a clone:** double-click `Launch.command`, which does the same checks
+and setup. Or by hand:
+
 ```bash
 git clone https://github.com/newideas99/open-dungeon && cd open-dungeon
 npm install
