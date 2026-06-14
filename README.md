@@ -69,10 +69,19 @@ generation defaults to a safer 65K context window and a 6 minute upstream
 timeout so a slow or wedged Ollama request returns control to the app instead
 of leaving the UI spinning forever. Set `LOCAL_TEXT_CONTEXT` or
 `LOCAL_TEXT_TIMEOUT_MS` in `.env.server` if you want to tune those limits. To
-force CPU from PowerShell, run:
+stop the web app and image worker, double-click `Stop-Windows.bat`; it leaves
+Ollama running by default because you may use it for other apps. To force CPU
+from PowerShell, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup-windows.ps1 -CpuOnly
+```
+
+To stop from PowerShell:
+
+```powershell
+npm run windows:stop
+powershell -ExecutionPolicy Bypass -File scripts\stop-windows.ps1 -IncludeOllama
 ```
 
 To sanity-check image routing without downloading models or generating an

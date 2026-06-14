@@ -257,6 +257,7 @@ if ($ValidateOnly) {
   Invoke-Checked "run-python syntax check failed." "node" @("--check", "scripts/run-python.mjs")
   Test-PowerShellFile "scripts/check-windows-launchers.ps1" "Windows launcher check script"
   Test-PowerShellFile "scripts/smoke-windows-image.ps1" "image smoke script"
+  Test-PowerShellFile "scripts/stop-windows.ps1" "Windows stop script"
   & (Join-Path $Repo "scripts\check-windows-launchers.ps1")
   Invoke-Checked "image routing check failed." "npm" @("run", "check:image-routing")
   Invoke-Checked "image server HTTP smoke failed." "npm" @("run", "check:image-server-http")

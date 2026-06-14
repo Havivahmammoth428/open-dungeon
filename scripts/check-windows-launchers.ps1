@@ -19,6 +19,10 @@ $Launchers = @(
   @{
     Path = "Launch-Windows-Image-Smoke-CPU.bat"
     Command = 'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\smoke-windows-image.ps1" -CpuOnly'
+  },
+  @{
+    Path = "Stop-Windows.bat"
+    Command = 'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\stop-windows.ps1"'
   }
 )
 
