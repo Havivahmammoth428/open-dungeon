@@ -36,7 +36,7 @@ function Stop-PortListeners($Port, $Name) {
       continue
     }
 
-    Write-Host "Stopping $Name on port $Port: $($process.ProcessName) ($processId)"
+    Write-Host "Stopping $Name on port ${Port}: $($process.ProcessName) ($processId)"
     Stop-Process -Id $processId -Force
   }
 }
