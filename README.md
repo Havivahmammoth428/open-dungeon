@@ -62,8 +62,9 @@ falls back to CPU mode when CUDA is not usable. If CUDA gives you trouble or
 you want the most compatible path, double-click `Launch-Windows-CPU.bat`
 instead. The launcher also fast-forwards an existing clean
 `ultra-fast-image-gen` checkout, keeps the selected CUDA/CPU PyTorch wheel in
-place while installing the rest of that repo's requirements, and reinstalls
-image dependencies when `requirements.txt` changes. To force CPU from
+place while installing the rest of that repo's requirements, verifies the
+expected `flux2-4b-sdnq` CLI route is still present, and reinstalls image
+dependencies when `requirements.txt` changes. To force CPU from
 PowerShell, run:
 
 ```powershell

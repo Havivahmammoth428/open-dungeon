@@ -198,6 +198,21 @@ sys.exit(1)
   return $exitCode -eq 0
 }
 
+function Test-UltraFastImageGenContract($PythonExe, $GeneratePath) {
+  if (-not (Test-Path $GeneratePath)) {
+    Stop-WithHelp "Missing ultra-fast-image-gen generate.py at $GeneratePath."
+  }
+
+  $helpOutput = & $PythonExe $GeneratePath "--help" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host ($helpOutput -join "`n") -ForegroundColor Yellow
+    Stop-WithHelp "ultra-fast-image-gen generate.py --help failed."
+  }
+  if (($helpOutput -join "`n") -notmatch "flux2-4b-sdnq") {
+    Stop-WithHelp "ultra-fast-image-gen no longer advertises flux2-4b-sdnq; Open Dungeon's Windows CUDA/CPU image route needs an update."
+  }
+}
+
 Write-Step "Open Dungeon Windows launcher"
 
 if ($ImageOnly -and $SkipImageSetup) {
@@ -347,6 +362,7 @@ if (-not $SkipImageSetup) {
   }
 
   $Requirements = Join-Path $UltraDir "requirements.txt"
+  $Generate = Join-Path $UltraDir "generate.py"
   if (-not (Test-Path $Requirements)) {
     Stop-WithHelp "Missing ultra-fast-image-gen requirements.txt at $Requirements."
   }
@@ -357,7 +373,7 @@ if (-not $SkipImageSetup) {
 
   if ($NeedsImageDeps) {
     Write-Step "Installing image dependencies ($ImageDevice)"
-    $FilteredRequirements = Join-Path $env:TEMP "open-dungeon-ultra-fast-image-gen-requirements.txt"
+    $FilteredRequirements = Join-Path ([System.IO.Path]::GetTempPath()) "open-dungeon-ultra-fast-image-gen-requirements.txt"
     Get-Content -Path $Requirements |
       Where-Object { $_ -notmatch '^\s*(torch|torchvision)(\s|[<>=~!;\[]|$)' } |
       Set-Content -Path $FilteredRequirements -Encoding UTF8
@@ -366,6 +382,9 @@ if (-not $SkipImageSetup) {
     Invoke-Checked "ultra-fast-image-gen dependency install failed." $VenvPython @("-m", "pip", "install", "-r", $FilteredRequirements)
     Set-Content -Path $Stamp -Value "device=$ImageDevice`ninstalled=$(Get-Date -Format o)`n" -Encoding UTF8
   }
+
+  Write-Step "Checking ultra-fast-image-gen CLI contract"
+  Test-UltraFastImageGenContract $VenvPython $Generate
 
   if ($ImageDevice -eq "cuda") {
     Write-Step "Checking PyTorch CUDA availability"
